@@ -18,6 +18,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   },
   ios: {
     supportsTablet: true,
+    infoPlist: {
+      NSCameraUsageDescription: 'Precisamos da câmera para que você possa tirar uma foto de perfil.',
+      NSPhotoLibraryUsageDescription:
+        'Precisamos acessar suas fotos para escolher uma imagem de perfil.',
+      NSPhotoLibraryAddUsageDescription:
+        'Precisamos salvar a foto capturada para usá-la como imagem de perfil.',
+    },
   },
   android: {
     adaptiveIcon: {
@@ -26,6 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
+    permissions: ['CAMERA', 'READ_MEDIA_IMAGES', 'READ_EXTERNAL_STORAGE'],
   },
   web: {
     favicon: './assets/favicon.png',
