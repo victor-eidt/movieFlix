@@ -1,6 +1,16 @@
-import React, { createContext, useContext, useMemo, useReducer, useCallback } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+} from 'react';
 
 import type { WatchedMovie } from '../types/domain';
+import { getWatchedMovies, persistWatchedMovies } from '../services/storage';
+import { useAuth } from './AuthContext';
 
 type WatchedState = Record<number, WatchedMovie>;
 
@@ -65,15 +75,77 @@ const initialState: MoviesState = {
 };
 
 export const MoviesProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const { user } = useAuth();
   const [state, dispatch] = useReducer(reducer, initialState);
+  const stateRef = useRef<WatchedState>(initialState.watched);
 
-  const addOrUpdateRating = useCallback(async (entry: WatchedMovie): Promise<void> => {
-    dispatch({ type: 'upsert', payload: entry });
-  }, []);
+  useEffect(() => {
+    stateRef.current = state.watched;
+  }, [state.watched]);
 
-  const removeRating = useCallback(async (movieId: number): Promise<void> => {
-    dispatch({ type: 'remove', payload: movieId });
-  }, []);
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWatched = async () => {
+      if (!user) {
+        dispatch({ type: 'hydrate', payload: {} });
+        return;
+      }
+
+      dispatch({ type: 'reset' });
+      try {
+        const stored = await getWatchedMovies(user.id);
+        if (cancelled) {
+          return;
+        }
+
+        const mapped = stored.reduce<WatchedState>((acc, item) => {
+          acc[item.movieId] = item;
+          return acc;
+        }, {});
+
+        dispatch({ type: 'hydrate', payload: mapped });
+      } catch (error) {
+        console.warn('Failed to hydrate watched movies', error);
+        if (!cancelled) {
+          dispatch({ type: 'hydrate', payload: {} });
+        }
+      }
+    };
+
+    void loadWatched();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  const addOrUpdateRating = useCallback(
+    async (entry: WatchedMovie): Promise<void> => {
+      if (!user) {
+        throw new Error('É necessário estar autenticado para avaliar filmes.');
+      }
+
+      const nextWatched = { ...stateRef.current, [entry.movieId]: entry };
+      await persistWatchedMovies(user.id, Object.values(nextWatched));
+      dispatch({ type: 'upsert', payload: entry });
+    },
+    [user],
+  );
+
+  const removeRating = useCallback(
+    async (movieId: number): Promise<void> => {
+      if (!user) {
+        return;
+      }
+
+      const nextWatched = { ...stateRef.current };
+      delete nextWatched[movieId];
+      await persistWatchedMovies(user.id, Object.values(nextWatched));
+      dispatch({ type: 'remove', payload: movieId });
+    },
+    [user],
+  );
 
   const hydrate = useCallback((payload: WatchedState): void => {
     dispatch({ type: 'hydrate', payload });
