@@ -16,6 +16,11 @@ type RegisterPayload = {
   avatarUri?: string | null;
 };
 
+type UpdateProfilePayload = {
+  name?: string;
+  avatarUri?: string | null;
+};
+
 type AuthContextValue = {
   user: User | null;
   isLoading: boolean;
@@ -23,6 +28,7 @@ type AuthContextValue = {
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
+  updateProfile: (payload: UpdateProfilePayload) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -129,6 +135,46 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     setUser(null);
   }, []);
 
+  const updateProfile = useCallback(
+    async ({ name, avatarUri }: UpdateProfilePayload) => {
+      if (!user) {
+        throw new Error('Nenhum usuário autenticado.');
+      }
+
+      const updates: Partial<User> = {};
+
+      if (typeof name === 'string') {
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          throw new Error('Informe um nome válido.');
+        }
+        updates.name = trimmedName;
+      }
+
+      if (typeof avatarUri !== 'undefined') {
+        updates.avatarUri = avatarUri ?? null;
+      }
+
+      if (Object.keys(updates).length === 0) {
+        return;
+      }
+
+      const users = await getPersistedUsers();
+      const updatedUsers = users.map((item) =>
+        item.id === user.id ? { ...item, ...updates } : item,
+      );
+
+      const updatedUser = updatedUsers.find((item) => item.id === user.id);
+      if (!updatedUser) {
+        throw new Error('Usuário não encontrado para atualização.');
+      }
+
+      await persistUsers(updatedUsers);
+      setUser(updatedUser);
+    },
+    [user],
+  );
+
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
@@ -141,8 +187,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       register,
       logout,
       hydrate,
+      updateProfile,
     }),
-    [user, isLoading, login, register, logout, hydrate],
+    [user, isLoading, login, register, logout, hydrate, updateProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
