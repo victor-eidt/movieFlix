@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   FlatList,
   Keyboard,
@@ -101,6 +102,16 @@ const SearchScreen: React.FC = () => {
 
     return `${results.length} resultado(s) encontrado(s).`;
   }, [errorMessage, hasSearched, isLoading, results.length]);
+
+  useEffect(() => {
+    if (!hasSearched || isLoading) {
+      return;
+    }
+
+    AccessibilityInfo.announceForAccessibility(headerDescription).catch((error) => {
+      console.warn('Failed to announce search status', error);
+    });
+  }, [headerDescription, hasSearched, isLoading]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
