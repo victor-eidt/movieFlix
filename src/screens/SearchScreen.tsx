@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo,
   ActivityIndicator,
   FlatList,
   Keyboard,
@@ -19,6 +18,7 @@ import MovieCard from '../components/MovieCard';
 import { searchMovies } from '../services/tmdb';
 import type { Movie } from '../types/domain';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { announceForAccessibility } from '../utils/a11y';
 
 const SearchScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -108,9 +108,7 @@ const SearchScreen: React.FC = () => {
       return;
     }
 
-    AccessibilityInfo.announceForAccessibility(headerDescription).catch((error) => {
-      console.warn('Failed to announce search status', error);
-    });
+    void announceForAccessibility(headerDescription);
   }, [headerDescription, hasSearched, isLoading]);
 
   return (

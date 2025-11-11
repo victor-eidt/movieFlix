@@ -7,7 +7,6 @@ import React, {
 } from 'react';
 import {
   ActivityIndicator,
-  AccessibilityInfo,
   Image,
   Pressable,
   SafeAreaView,
@@ -23,6 +22,7 @@ import { useMovies } from '../context/MoviesContext';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import { getBackdropUrl, getMovieDetails, getPosterUrl } from '../services/tmdb';
 import type { MovieDetails } from '../types/domain';
+import { announceForAccessibility } from '../utils/a11y';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MovieDetails'>;
 
@@ -158,8 +158,9 @@ const MovieDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       };
       await addOrUpdateRating(entry);
       setStatusType('success');
-      setStatusMessage('Filme salvo na sua lista de assistidos.');
-      AccessibilityInfo.announceForAccessibility('Filme salvo na sua lista de assistidos.');
+      const successMessage = 'Filme salvo na sua lista de assistidos.';
+      setStatusMessage(successMessage);
+      void announceForAccessibility(successMessage);
     } catch (error) {
       console.warn('Failed to save movie rating', error);
       setStatusType('error');
@@ -178,8 +179,9 @@ const MovieDetailsScreen: React.FC<Props> = ({ route, navigation }) => {
       setStatusType(null);
       await removeRating(movieId);
       setStatusType('success');
-      setStatusMessage('Avaliação removida da sua lista.');
-      AccessibilityInfo.announceForAccessibility('Avaliação removida da sua lista.');
+      const successMessage = 'Avaliação removida da sua lista.';
+      setStatusMessage(successMessage);
+      void announceForAccessibility(successMessage);
     } catch (error) {
       console.warn('Failed to remove movie rating', error);
       setStatusType('error');
