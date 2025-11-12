@@ -1,13 +1,14 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import * as Crypto from 'expo-crypto';
 
 import type { User } from '../types/domain';
 import {
-  getCurrentUserId,
-  getPersistedUsers,
-  persistUsers,
-  setCurrentUserId,
-} from '../services/storage';
+  getCurrentUser,
+  signIn,
+  signOut,
+  signUp,
+  updateUserProfile,
+  onAuthStateChange,
+} from '../services/supabaseAuth';
 
 type RegisterPayload = {
   name: string;
@@ -33,14 +34,6 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-const normalizeEmail = (email: string): string => email.trim().toLowerCase();
-
-const generateUserId = (): string =>
-  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-
-const hashPassword = async (password: string): Promise<string> =>
-  Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, password);
-
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,90 +41,35 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const hydrate = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [users, currentUserId] = await Promise.all([
-        getPersistedUsers(),
-        getCurrentUserId(),
-      ]);
-
-      if (!currentUserId) {
-        setUser(null);
-        return;
-      }
-
-      const currentUser = users.find((item) => item.id === currentUserId);
-      setUser(currentUser ?? null);
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+    } catch (error) {
+      console.warn('Erro ao carregar usuário:', error);
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const normalizedEmail = normalizeEmail(email);
-
-    if (!normalizedEmail || !password) {
-      throw new Error('Informe e-mail e senha para continuar.');
-    }
-
-    const users = await getPersistedUsers();
-    const existingUser = users.find((item) => item.email === normalizedEmail);
-
-    if (!existingUser) {
-      throw new Error('Usuário não encontrado. Verifique o e-mail digitado.');
-    }
-
-    const passwordHash = await hashPassword(password);
-
-    if (existingUser.passwordHash !== passwordHash) {
-      throw new Error('Senha incorreta. Tente novamente.');
-    }
-
-    await setCurrentUserId(existingUser.id);
-    setUser(existingUser);
+    const { user: loggedUser } = await signIn(email, password);
+    setUser(loggedUser);
   }, []);
 
-  const register = useCallback(
-    async ({ name, email, password, avatarUri }: RegisterPayload) => {
-      const normalizedEmail = normalizeEmail(email);
-      const trimmedName = name.trim();
-
-      if (!trimmedName) {
-        throw new Error('Informe um nome para concluir o cadastro.');
-      }
-
-      if (!normalizedEmail) {
-        throw new Error('Informe um e-mail válido.');
-      }
-
-      if (password.length < 6) {
-        throw new Error('A senha deve conter pelo menos 6 caracteres.');
-      }
-
-      const users = await getPersistedUsers();
-      const alreadyExists = users.some((item) => item.email === normalizedEmail);
-
-      if (alreadyExists) {
-        throw new Error('Já existe um usuário cadastrado com este e-mail.');
-      }
-
-      const passwordHash = await hashPassword(password);
-      const newUser: User = {
-        id: generateUserId(),
-        name: trimmedName,
-        email: normalizedEmail,
-        passwordHash,
-        avatarUri: avatarUri ?? null,
-      };
-
-      const updatedUsers = [...users, newUser];
-      await persistUsers(updatedUsers);
-      await setCurrentUserId(newUser.id);
+  const register = useCallback(async ({ name, email, password, avatarUri }: RegisterPayload) => {
+    const { user: newUser } = await signUp(email, password, name);
+    
+    // Se houver avatarUri, atualizar o perfil
+    if (avatarUri) {
+      const updatedUser = await updateUserProfile(newUser.id, { avatar_uri: avatarUri });
+      setUser(updatedUser);
+    } else {
       setUser(newUser);
-    },
-    [],
-  );
+    }
+  }, []);
 
   const logout = useCallback(async () => {
-    await setCurrentUserId(null);
+    await signOut();
     setUser(null);
   }, []);
 
@@ -141,7 +79,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         throw new Error('Nenhum usuário autenticado.');
       }
 
-      const updates: Partial<User> = {};
+      const updates: { name?: string; avatar_uri?: string | null } = {};
 
       if (typeof name === 'string') {
         const trimmedName = name.trim();
@@ -152,24 +90,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
 
       if (typeof avatarUri !== 'undefined') {
-        updates.avatarUri = avatarUri ?? null;
+        updates.avatar_uri = avatarUri ?? null;
       }
 
-      if (Object.keys(updates).length === 0) {
-        return;
-      }
-
-      const users = await getPersistedUsers();
-      const updatedUsers = users.map((item) =>
-        item.id === user.id ? { ...item, ...updates } : item,
-      );
-
-      const updatedUser = updatedUsers.find((item) => item.id === user.id);
-      if (!updatedUser) {
-        throw new Error('Usuário não encontrado para atualização.');
-      }
-
-      await persistUsers(updatedUsers);
+      const updatedUser = await updateUserProfile(user.id, updates);
       setUser(updatedUser);
     },
     [user],
@@ -178,6 +102,18 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // Escutar mudanças na autenticação do Supabase
+  useEffect(() => {
+    const unsubscribe = onAuthStateChange((authUser) => {
+      setUser(authUser);
+      setIsLoading(false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   const value = useMemo(
     () => ({

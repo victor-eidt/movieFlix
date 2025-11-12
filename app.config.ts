@@ -1,6 +1,8 @@
 import { ExpoConfig, ConfigContext } from 'expo/config';
 
 const TMDB_API_KEY = process.env.EXPO_PUBLIC_TMDB_API_KEY ?? 'e26281e4d3048c378ce3b2805f426fc6';
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -41,6 +43,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     ...config.extra,
     tmdbApiKey: TMDB_API_KEY,
+    supabaseUrl: SUPABASE_URL,
+    supabaseAnonKey: SUPABASE_ANON_KEY,
   },
 });
 

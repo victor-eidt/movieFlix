@@ -9,7 +9,11 @@ import React, {
 } from 'react';
 
 import type { WatchedMovie } from '../types/domain';
-import { getWatchedMovies, persistWatchedMovies } from '../services/storage';
+import {
+  getWatchedMovies as getWatchedMoviesFromSupabase,
+  upsertWatchedMovie,
+  removeWatchedMovie as removeWatchedMovieFromSupabase,
+} from '../services/supabaseMovies';
 import { useAuth } from './AuthContext';
 
 type WatchedState = Record<number, WatchedMovie>;
@@ -94,7 +98,7 @@ export const MoviesProvider: React.FC<React.PropsWithChildren> = ({ children }) 
 
       dispatch({ type: 'reset' });
       try {
-        const stored = await getWatchedMovies(user.id);
+        const stored = await getWatchedMoviesFromSupabase(user.id);
         if (cancelled) {
           return;
         }
@@ -126,8 +130,7 @@ export const MoviesProvider: React.FC<React.PropsWithChildren> = ({ children }) 
         throw new Error('É necessário estar autenticado para avaliar filmes.');
       }
 
-      const nextWatched = { ...stateRef.current, [entry.movieId]: entry };
-      await persistWatchedMovies(user.id, Object.values(nextWatched));
+      await upsertWatchedMovie(user.id, entry);
       dispatch({ type: 'upsert', payload: entry });
     },
     [user],
@@ -139,9 +142,7 @@ export const MoviesProvider: React.FC<React.PropsWithChildren> = ({ children }) 
         return;
       }
 
-      const nextWatched = { ...stateRef.current };
-      delete nextWatched[movieId];
-      await persistWatchedMovies(user.id, Object.values(nextWatched));
+      await removeWatchedMovieFromSupabase(user.id, movieId);
       dispatch({ type: 'remove', payload: movieId });
     },
     [user],
