@@ -10,7 +10,7 @@ import AppNavigator from './src/navigation/AppNavigator';
 const App: React.FC = () => (
   <AuthProvider>
     <MoviesProvider>
-      <StatusBar style="auto" />
+      <StatusBar style="light" />
       <AppNavigator />
     </MoviesProvider>
   </AuthProvider>
