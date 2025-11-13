@@ -1,19 +1,28 @@
 import { createClient } from '@supabase/supabase-js';
+import Constants from 'expo-constants';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+type SupabaseConfig = {
+  supabaseUrl?: string;
+  supabaseAnonKey?: string;
+};
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn(
-    'Supabase URL ou Anon Key não configurados. Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY nas variáveis de ambiente.',
-  );
-}
+const extra = Constants.expoConfig?.extra as SupabaseConfig | undefined;
+const resolvedSupabaseUrl = extra?.supabaseUrl ?? process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+const resolvedSupabaseAnonKey =
+  extra?.supabaseAnonKey ?? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
-});
+export const supabase = createClient(
+  resolvedSupabaseUrl || 'https://placeholder.supabase.co',
+  resolvedSupabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: false,
+    },
+  }
+);
 
+export const isSupabaseConfigured = (): boolean => {
+  return Boolean(resolvedSupabaseUrl && resolvedSupabaseAnonKey);
+};

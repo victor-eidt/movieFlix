@@ -75,19 +75,24 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         throw new Error('Erro ao criar usuário. Tente novamente.');
       }
       
-      setUser(newUser);
-      setIsLoading(false);
+      let finalUser = newUser;
+      
       if (avatarUri) {
-        setTimeout(async () => {
-          try {
-            const updatedUser = await updateUserProfile(newUser.id, { avatar_uri: avatarUri });
-            setUser(updatedUser);
-          } catch (avatarError) {
-            console.warn('Erro ao atualizar avatar após cadastro:', avatarError);
-
+        try {
+          await updateUserProfile(newUser.id, { avatar_uri: avatarUri });
+          const updatedUser = await getCurrentUser();
+          if (updatedUser) {
+            finalUser = updatedUser;
           }
-        }, 1000);
+        } catch (avatarError) {
+          console.warn('Erro ao atualizar avatar após cadastro:', avatarError);
+        }
       }
+      
+      setUser(finalUser);
+      setIsLoading(false);
+      
+      await new Promise(resolve => setTimeout(resolve, 100));
     } catch (error) {
       console.error('Erro no registro:', error);
       setIsLoading(false);
@@ -130,22 +135,31 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     void hydrate();
   }, [hydrate]);
 
-  // Escutar mudanças na autenticação do Supabase (apenas para mudanças de sessão)
+
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
+    let isMounted = true;
     
     const unsubscribe = onAuthStateChange((authUser) => {
-      // Atualiza o usuário quando há mudança de sessão (logout, refresh, etc)
-      setUser(authUser);
-      setIsLoading(false);
+      if (isMounted) {
+        setUser((currentUser) => {
+          if (currentUser && !authUser) {
+            return currentUser;
+          }
+          return authUser;
+        });
+        setIsLoading(false);
+      }
     });
 
-    // Timeout de segurança: se após 3 segundos ainda estiver carregando, força o fim do loading
     timeoutId = setTimeout(() => {
-      setIsLoading(false);
+      if (isMounted) {
+        setIsLoading(false);
+      }
     }, 3000);
 
     return () => {
+      isMounted = false;
       clearTimeout(timeoutId);
       unsubscribe();
     };
