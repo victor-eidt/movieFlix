@@ -38,8 +38,17 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     setIsSubmitting(true);
 
     try {
-      await login(email.trim(), password);
+
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão e tente novamente.')), 30000);
+      });
+
+      await Promise.race([
+        login(email.trim(), password),
+        timeoutPromise,
+      ]) as Promise<void>;
     } catch (authError) {
+      console.error('Erro no login:', authError);
       setError(
         authError instanceof Error ? authError.message : 'Não foi possível fazer login.',
       );

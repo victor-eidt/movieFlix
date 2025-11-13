@@ -106,35 +106,53 @@ export const signIn = async (email: string, password: string): Promise<{ user: U
     throw new Error('Informe e-mail e senha para continuar.');
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: normalizedEmail,
-    password,
-  });
-
-  if (error) {
-    if (error.message.includes('invalid login credentials')) {
-      throw new Error('e-mail ou senha incorretos. Tente novamente.');
-    }
-    throw new Error(error.message || 'erro ao fazer login. Tente novamente.');
+  // Verificar se o Supabase está configurado
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+  const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase não está configurado. Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY.');
   }
 
-  if (!data.user) {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (error) {
+      console.error('Erro no signIn do Supabase:', error);
+      if (error.message.includes('invalid login credentials')) {
+        throw new Error('e-mail ou senha incorretos. Tente novamente.');
+      }
+      throw new Error(error.message || 'erro ao fazer login. Tente novamente.');
+    }
+
+    if (!data.user) {
+      throw new Error('erro ao fazer login. Tente novamente.');
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', data.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('Erro ao carregar perfil:', profileError);
+      throw new Error('erro ao carregar perfil do usuário.');
+    }
+
+    const user = mapSupabaseUserToDomain(profile as SupabaseUser);
+
+    return { user, session: data.session };
+  } catch (error) {
+    console.error('Erro completo no signIn:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
     throw new Error('erro ao fazer login. Tente novamente.');
   }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', data.user.id)
-    .single();
-
-  if (profileError || !profile) {
-    throw new Error('erro ao carregar perfil do usuário.');
-  }
-
-  const user = mapSupabaseUserToDomain(profile as SupabaseUser);
-
-  return { user, session: data.session };
 };
 
 export const signOut = async (): Promise<void> => {

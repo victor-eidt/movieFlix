@@ -99,7 +99,6 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     setIsSubmitting(true);
 
     try {
-      // Timeout de segurança: se demorar mais de 30 segundos, cancela
       const timeoutPromise = new Promise((_, reject) => {
         setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão e tente novamente.')), 30000);
       });

@@ -52,8 +52,19 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const { user: loggedUser } = await signIn(email, password);
-    setUser(loggedUser);
+    try {
+      const { user: loggedUser } = await signIn(email, password);
+      if (loggedUser) {
+        setUser(loggedUser);
+        setIsLoading(false);
+      } else {
+        throw new Error('Erro ao fazer login. Usuário não retornado.');
+      }
+    } catch (error) {
+      console.error('Erro no login:', error);
+      setIsLoading(false);
+      throw error;
+    }
   }, []);
 
   const register = useCallback(async ({ name, email, password, avatarUri }: RegisterPayload) => {
@@ -64,25 +75,22 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         throw new Error('Erro ao criar usuário. Tente novamente.');
       }
       
-      // Define o usuário primeiro para garantir que o cadastro seja concluído
       setUser(newUser);
-      
-      // Se houver avatarUri, tenta atualizar o perfil em segundo plano
-      // Mas não bloqueia o cadastro se falhar
+      setIsLoading(false);
       if (avatarUri) {
-        // Aguarda um pouco para garantir que o perfil foi criado
         setTimeout(async () => {
           try {
             const updatedUser = await updateUserProfile(newUser.id, { avatar_uri: avatarUri });
             setUser(updatedUser);
           } catch (avatarError) {
             console.warn('Erro ao atualizar avatar após cadastro:', avatarError);
-            // Não lança erro aqui - o usuário já foi criado com sucesso
+
           }
-        }, 500);
+        }, 1000);
       }
     } catch (error) {
       console.error('Erro no registro:', error);
+      setIsLoading(false);
       throw error;
     }
   }, []);
@@ -122,11 +130,12 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     void hydrate();
   }, [hydrate]);
 
-  // Escutar mudanças na autenticação do Supabase
+  // Escutar mudanças na autenticação do Supabase (apenas para mudanças de sessão)
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
     
     const unsubscribe = onAuthStateChange((authUser) => {
+      // Atualiza o usuário quando há mudança de sessão (logout, refresh, etc)
       setUser(authUser);
       setIsLoading(false);
     });
