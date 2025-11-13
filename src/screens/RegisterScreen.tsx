@@ -99,13 +99,22 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     setIsSubmitting(true);
 
     try {
-      await register({
-        name: name.trim(),
-        email: email.trim(),
-        password,
-        avatarUri,
+      // Timeout de segurança: se demorar mais de 30 segundos, cancela
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Tempo limite excedido. Verifique sua conexão e tente novamente.')), 30000);
       });
+
+      await Promise.race([
+        register({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          avatarUri,
+        }),
+        timeoutPromise,
+      ]) as Promise<void>;
     } catch (authError) {
+      console.error('Erro no cadastro:', authError);
       setError(
         authError instanceof Error
           ? authError.message

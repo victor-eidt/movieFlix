@@ -20,3 +20,4 @@ export const getTmdbApiKey = (): string => {
   return apiKey;
 };
 
+// Victor Gabriel, Vinicius Yudi, Giordano Serafini, Gabriel Ribeiro, Julia Tatim

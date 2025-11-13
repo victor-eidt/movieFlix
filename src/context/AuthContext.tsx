@@ -57,14 +57,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, []);
 
   const register = useCallback(async ({ name, email, password, avatarUri }: RegisterPayload) => {
-    const { user: newUser } = await signUp(email, password, name);
-    
-    // Se houver avatarUri, atualizar o perfil
-    if (avatarUri) {
-      const updatedUser = await updateUserProfile(newUser.id, { avatar_uri: avatarUri });
-      setUser(updatedUser);
-    } else {
+    try {
+      const { user: newUser } = await signUp(email, password, name);
+      
+      if (!newUser) {
+        throw new Error('Erro ao criar usuário. Tente novamente.');
+      }
+      
+      // Define o usuário primeiro para garantir que o cadastro seja concluído
       setUser(newUser);
+      
+      // Se houver avatarUri, tenta atualizar o perfil em segundo plano
+      // Mas não bloqueia o cadastro se falhar
+      if (avatarUri) {
+        // Aguarda um pouco para garantir que o perfil foi criado
+        setTimeout(async () => {
+          try {
+            const updatedUser = await updateUserProfile(newUser.id, { avatar_uri: avatarUri });
+            setUser(updatedUser);
+          } catch (avatarError) {
+            console.warn('Erro ao atualizar avatar após cadastro:', avatarError);
+            // Não lança erro aqui - o usuário já foi criado com sucesso
+          }
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Erro no registro:', error);
+      throw error;
     }
   }, []);
 
@@ -105,12 +124,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
   // Escutar mudanças na autenticação do Supabase
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    
     const unsubscribe = onAuthStateChange((authUser) => {
       setUser(authUser);
       setIsLoading(false);
     });
 
+    // Timeout de segurança: se após 3 segundos ainda estiver carregando, força o fim do loading
+    timeoutId = setTimeout(() => {
+      setIsLoading(false);
+    }, 3000);
+
     return () => {
+      clearTimeout(timeoutId);
       unsubscribe();
     };
   }, []);

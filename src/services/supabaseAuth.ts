@@ -36,47 +36,67 @@ export const signUp = async (
     throw new Error('A senha deve conter pelo menos 6 caracteres.');
   }
 
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: normalizedEmail,
-    password,
-    options: {
-      data: {
-        name: trimmedName,
-      },
-    },
-  });
-
-  if (authError) {
-    if (authError.message.includes('already registered')) {
-      throw new Error('já existe um usuário cadastrado com este e-mail.');
-    }
-    throw new Error(authError.message || 'erro ao criar conta. Tente novamente.');
+  // Verificar se o Supabase está configurado
+  const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+  const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase não está configurado. Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY.');
   }
 
-  if (!authData.user) {
+  try {
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        data: {
+          name: trimmedName,
+        },
+      },
+    });
+
+    if (authError) {
+      console.error('Erro no signUp do Supabase:', authError);
+      if (authError.message.includes('already registered') || authError.message.includes('already registered')) {
+        throw new Error('já existe um usuário cadastrado com este e-mail.');
+      }
+      throw new Error(authError.message || 'erro ao criar conta. Tente novamente.');
+    }
+
+    if (!authData.user) {
+      throw new Error('erro ao criar conta. Tente novamente.');
+    }
+
+    // Criar perfil do usuário
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: authData.user.id,
+      email: normalizedEmail,
+      name: trimmedName,
+      avatar_uri: null,
+    });
+
+    if (profileError) {
+      console.warn('erro ao criar perfil:', profileError);
+      // Não lança erro aqui, pois o usuário já foi criado no auth
+      // O perfil pode ser criado depois se necessário
+    }
+
+    const user: User = {
+      id: authData.user.id,
+      email: normalizedEmail,
+      name: trimmedName,
+      avatarUri: null,
+      passwordHash: '',
+    };
+
+    return { user, session: authData.session };
+  } catch (error) {
+    console.error('Erro completo no signUp:', error);
+    if (error instanceof Error) {
+      throw error;
+    }
     throw new Error('erro ao criar conta. Tente novamente.');
   }
-
-  const { error: profileError } = await supabase.from('profiles').insert({
-    id: authData.user.id,
-    email: normalizedEmail,
-    name: trimmedName,
-    avatar_uri: null,
-  });
-
-  if (profileError) {
-    console.warn('erro ao criar perfil:', profileError);
-  }
-
-  const user: User = {
-    id: authData.user.id,
-    email: normalizedEmail,
-    name: trimmedName,
-    avatarUri: null,
-    passwordHash: '',
-  };
-
-  return { user, session: authData.session };
 };
 
 export const signIn = async (email: string, password: string): Promise<{ user: User; session: any }> => {
@@ -205,14 +225,22 @@ export const onAuthStateChange = (callback: (user: User | null) => void): (() =>
   const {
     data: { subscription },
   } = supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_OUT' || !session) {
-      callback(null);
-      return;
-    }
+    try {
 
-    if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-      const user = await getCurrentUser();
-      callback(user);
+      if (event === 'SIGNED_OUT' || !session) {
+        callback(null);
+        return;
+      }
+
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
+        const user = await getCurrentUser();
+        callback(user);
+      }
+    } catch (error) {
+      console.warn('Erro ao processar mudança de autenticação:', error);
+
+      callback(null);
     }
   });
 
