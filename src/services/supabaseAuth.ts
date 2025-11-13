@@ -8,20 +8,14 @@ export type SupabaseUser = {
   avatar_uri?: string | null;
 };
 
-/**
- * Converte o usuário do Supabase para o formato do domínio
- */
 const mapSupabaseUserToDomain = (supabaseUser: SupabaseUser): User => ({
   id: supabaseUser.id,
   email: supabaseUser.email,
   name: supabaseUser.name,
   avatarUri: supabaseUser.avatar_uri ?? null,
-  passwordHash: '', // Não armazenamos mais hash localmente
+  passwordHash: '',
 });
 
-/**
- * Registra um novo usuário no Supabase
- */
 export const signUp = async (
   email: string,
   password: string,
@@ -31,18 +25,17 @@ export const signUp = async (
   const trimmedName = name.trim();
 
   if (!trimmedName) {
-    throw new Error('Informe um nome para concluir o cadastro.');
+    throw new Error('informe um nome para concluir o cadastro.');
   }
 
   if (!normalizedEmail) {
-    throw new Error('Informe um e-mail válido.');
+    throw new Error('informe um e-mail válido.');
   }
 
   if (password.length < 6) {
     throw new Error('A senha deve conter pelo menos 6 caracteres.');
   }
 
-  // Criar usuário no Supabase Auth
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email: normalizedEmail,
     password,
@@ -55,16 +48,15 @@ export const signUp = async (
 
   if (authError) {
     if (authError.message.includes('already registered')) {
-      throw new Error('Já existe um usuário cadastrado com este e-mail.');
+      throw new Error('já existe um usuário cadastrado com este e-mail.');
     }
-    throw new Error(authError.message || 'Erro ao criar conta. Tente novamente.');
+    throw new Error(authError.message || 'erro ao criar conta. Tente novamente.');
   }
 
   if (!authData.user) {
-    throw new Error('Erro ao criar conta. Tente novamente.');
+    throw new Error('erro ao criar conta. Tente novamente.');
   }
 
-  // Criar perfil do usuário na tabela profiles
   const { error: profileError } = await supabase.from('profiles').insert({
     id: authData.user.id,
     email: normalizedEmail,
@@ -73,8 +65,7 @@ export const signUp = async (
   });
 
   if (profileError) {
-    console.warn('Erro ao criar perfil:', profileError);
-    // Não falhamos aqui, pois o usuário já foi criado no auth
+    console.warn('erro ao criar perfil:', profileError);
   }
 
   const user: User = {
@@ -88,9 +79,6 @@ export const signUp = async (
   return { user, session: authData.session };
 };
 
-/**
- * Faz login do usuário no Supabase
- */
 export const signIn = async (email: string, password: string): Promise<{ user: User; session: any }> => {
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -104,17 +92,16 @@ export const signIn = async (email: string, password: string): Promise<{ user: U
   });
 
   if (error) {
-    if (error.message.includes('Invalid login credentials')) {
-      throw new Error('E-mail ou senha incorretos. Tente novamente.');
+    if (error.message.includes('invalid login credentials')) {
+      throw new Error('e-mail ou senha incorretos. Tente novamente.');
     }
-    throw new Error(error.message || 'Erro ao fazer login. Tente novamente.');
+    throw new Error(error.message || 'erro ao fazer login. Tente novamente.');
   }
 
   if (!data.user) {
-    throw new Error('Erro ao fazer login. Tente novamente.');
+    throw new Error('erro ao fazer login. Tente novamente.');
   }
 
-  // Buscar perfil do usuário
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('*')
@@ -122,7 +109,7 @@ export const signIn = async (email: string, password: string): Promise<{ user: U
     .single();
 
   if (profileError || !profile) {
-    throw new Error('Erro ao carregar perfil do usuário.');
+    throw new Error('erro ao carregar perfil do usuário.');
   }
 
   const user = mapSupabaseUserToDomain(profile as SupabaseUser);
@@ -130,19 +117,13 @@ export const signIn = async (email: string, password: string): Promise<{ user: U
   return { user, session: data.session };
 };
 
-/**
- * Faz logout do usuário
- */
 export const signOut = async (): Promise<void> => {
   const { error } = await supabase.auth.signOut();
   if (error) {
-    throw new Error(error.message || 'Erro ao fazer logout.');
+    throw new Error(error.message || 'erro ao fazer logout.');
   }
 };
 
-/**
- * Obtém o usuário atual da sessão
- */
 export const getCurrentUser = async (): Promise<User | null> => {
   const {
     data: { user: authUser },
@@ -152,7 +133,6 @@ export const getCurrentUser = async (): Promise<User | null> => {
     return null;
   }
 
-  // Buscar perfil do usuário
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('*')
@@ -166,20 +146,18 @@ export const getCurrentUser = async (): Promise<User | null> => {
   return mapSupabaseUserToDomain(profile as SupabaseUser);
 };
 
-/**
- * Atualiza o perfil do usuário
- */
 export const updateUserProfile = async (
   userId: string,
   updates: { name?: string; avatar_uri?: string | null },
 ): Promise<User> => {
-  // Verificar se o usuário está autenticado
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
   
   if (!user || user.id !== userId) {
-    throw new Error('Usuário não autenticado ou não autorizado.');
+    throw new Error('usuário não autenticado ou não autorizado.');
+
   }
 
   const updateData: Partial<SupabaseUser> = {};
@@ -187,7 +165,7 @@ export const updateUserProfile = async (
   if (typeof updates.name === 'string') {
     const trimmedName = updates.name.trim();
     if (!trimmedName) {
-      throw new Error('Informe um nome válido.');
+      throw new Error('informe um nome válido');
     }
     updateData.name = trimmedName;
   }
@@ -199,7 +177,7 @@ export const updateUserProfile = async (
   if (Object.keys(updateData).length === 0) {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
     if (!profile) {
-      throw new Error('Perfil não encontrado.');
+      throw new Error('perfil não encontrado');
     }
     return mapSupabaseUserToDomain(profile as SupabaseUser);
   }
@@ -210,22 +188,19 @@ export const updateUserProfile = async (
     console.error('Erro ao atualizar perfil:', error);
     if (error.code === '42501' || error.message.includes('row-level security')) {
       throw new Error(
-        'Erro de permissão. Verifique se as políticas RLS estão configuradas corretamente no Supabase.',
+        'erro de permissão. verifique se as políticas RLS estão configuradas corretamente no Supabase',
       );
     }
-    throw new Error(error.message || 'Erro ao atualizar perfil.');
+    throw new Error(error.message || 'erro ao atualizar perfil.');
   }
 
   if (!data) {
-    throw new Error('Erro ao atualizar perfil.');
+    throw new Error('erro ao atualizar perfil.');
   }
 
   return mapSupabaseUserToDomain(data as SupabaseUser);
 };
 
-/**
- * Escuta mudanças na sessão de autenticação
- */
 export const onAuthStateChange = (callback: (user: User | null) => void): (() => void) => {
   const {
     data: { subscription },

@@ -9,7 +9,7 @@ export const getWatchedMovies = async (userId: string): Promise<WatchedMovie[]> 
     .order('rated_at', { ascending: false });
 
   if (error) {
-    console.warn('Erro ao buscar filmes assistidos:', error);
+    console.warn('erro ao buscar filmes assistidos:', error);
     return [];
   }
 
@@ -31,7 +31,7 @@ export const upsertWatchedMovie = async (userId: string, movie: WatchedMovie): P
   } = await supabase.auth.getUser();
   
   if (!user || user.id !== userId) {
-    throw new Error('Usuário não autenticado ou não autorizado.');
+    throw new Error('usuario não autenticado ou não autorizado.');
   }
 
   const { error } = await supabase.from('watched_movies').upsert(
@@ -48,13 +48,13 @@ export const upsertWatchedMovie = async (userId: string, movie: WatchedMovie): P
   );
 
   if (error) {
-    console.error('Erro ao salvar filme assistido:', error);
+    console.error('erro ao salvar filme', error);
     if (error.code === '42501' || error.message.includes('row-level security')) {
       throw new Error(
-        'erro de permissão tentar verificar as policys rls no supabase.',
+        'erro de permissão tentar verificar as policys rls no supabase',
       );
     }
-    throw new Error(error.message || 'Erro ao salvar filme assistido.');
+    throw new Error(error.message || 'erro ao salvar filme assistido');
   }
 };
 
@@ -62,7 +62,7 @@ export const removeWatchedMovie = async (userId: string, movieId: number): Promi
   const { error } = await supabase.from('watched_movies').delete().eq('user_id', userId).eq('movie_id', movieId);
 
   if (error) {
-    throw new Error(error.message || 'Erro ao remover filme assistido.');
+    throw new Error(error.message || 'erro ao remover filme assistido');
   }
 };
 
